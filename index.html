@@ -90,7 +90,8 @@ table{border-collapse:collapse;width:100%;text-align:left}td,th{padding:8px;bord
 .flap{background:light-dark(#e03350,#a8213a);clip-path:polygon(0 0,100% 0,50% 62%);transform-origin:top;transition:transform .5s;z-index:3}
 .env.open .flap{transform:rotateX(180deg);z-index:0}.env.open .letter{transform:translateY(-60%)}
 .env.open+.after,.after{transition:opacity .4s .9s}.after{opacity:0}.env.open~.after{opacity:1}
-.c{text-align:center}.back-link{color:var(--red);font-weight:700}
+.c{text-align:center}
+.mute{font:inherit;font-size:14px;font-weight:600;color:var(--mute);background:transparent;border:1.5px solid var(--line);border-radius:99px;padding:6px 14px;min-height:36px;cursor:pointer}.back-link{color:var(--red);font-weight:700}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:12px;font-weight:600;z-index:30;max-width:90vw;text-align:center}
 @media(max-width:600px){.grid3{grid-template-columns:minmax(0,1fr)}.sendlist li{align-items:stretch}.acts{width:100%}.acts .btn{flex:1}.row>.btn{flex:1 1 auto}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -190,9 +191,20 @@ function msg(p){const link=base()+'#ai-'+p.code;
   const det=[S.budget&&'Presupuesto: '+S.budget,S.date&&'Entrega: '+S.date,S.place&&'Dónde: '+S.place].filter(Boolean).join('\n');
   return `🎁 Amigo invisible del curro\n\nHola ${p.g}, ya está hecho el sorteo. Abre tu sobre secreto (solo lo ves tú):\n${link}`+(det?'\n\n'+det:'')+`\n\nSi el enlace no se abre, entra en ${base()} y pega este código:\n${p.code}\n\n¡Ni una palabra a nadie! 🤫`}
 
+/* villancico (Jingle Bells, dominio público) sintetizado con Web Audio */
+let AC=null,cur=null,musicOn=true;
+const NOTES={C:523.25,D:587.33,E:659.25,F:698.46,G:783.99};
+const SONG='E1 E1 E2 E1 E1 E2 E1 G1 C1.5 D.5 E4 F1 F1 F1.5 F.5 F1 E1 E1 E.5 E.5 E1 D1 D1 E1 D2 G2 E1 E1 E2 E1 E1 E2 E1 G1 C1.5 D.5 E4 F1 F1 F1.5 F.5 F1 E1 E1 E.5 E.5 G1 G1 F1 D1 C4'.split(' ').map(s=>[s[0],parseFloat(s.slice(1))]);
+function bell(f,t,d,out){const len=Math.max(d,.25)*1.4;for(const[m,g]of[[1,1],[2,.22],[3,.07]]){const o=AC.createOscillator(),v=AC.createGain();o.type='sine';o.frequency.value=f*m;v.gain.setValueAtTime(0,t);v.gain.linearRampToValueAtTime(g,t+.01);v.gain.exponentialRampToValueAtTime(.001,t+len);o.connect(v);v.connect(out);o.start(t);o.stop(t+len+.05)}}
+function jingle(t,out){const n=Math.floor(AC.sampleRate*.12),buf=AC.createBuffer(1,n,AC.sampleRate),d=buf.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,3);const s=AC.createBufferSource(),hp=AC.createBiquadFilter(),g=AC.createGain();s.buffer=buf;hp.type='highpass';hp.frequency.value=7000;g.gain.value=.3;s.connect(hp);hp.connect(g);g.connect(out);s.start(t)}
+function stopMusic(){if(!cur||!AC)return;const c=cur;cur=null;try{c.gain.cancelScheduledValues(AC.currentTime);c.gain.setValueAtTime(c.gain.value,AC.currentTime);c.gain.linearRampToValueAtTime(0,AC.currentTime+.3)}catch(e){}setTimeout(()=>{try{c.disconnect()}catch(e){}},400)}
+function playMusic(){if(!musicOn)return;stopMusic();try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();AC.resume()}catch(e){return}
+  const beat=.28,m=AC.createGain();m.gain.value=.2;m.connect(AC.destination);cur=m;let t=AC.currentTime+.05;const t0=t;
+  for(let k=0;k<2;k++)for(const[n,b]of SONG){bell(NOTES[n],t,b*beat,m);t+=b*beat}
+  for(let x=t0;x<t;x+=beat)jingle(x,m)}
 function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2600)}
 function openOv(h){$('#dlg').innerHTML=h;$('#ov').hidden=false;const f=$('#dlg button');if(f)f.focus()}
-const closeOv=()=>{$('#ov').hidden=true;$('#dlg').innerHTML=''};
+const closeOv=()=>{stopMusic();$('#ov').hidden=true;$('#dlg').innerHTML=''};
 
 function renderPeople(){
   $('#people').innerHTML=S.people.map((x,i)=>`<div class="tk"><span class="stub">${esc(x.n.charAt(0).toUpperCase())}</span><span class="tn">${esc(x.n)}</span><button type="button" class="x" data-del="${i}" aria-label="Quitar a ${esc(x.n)}">×</button></div>`).join('')||'<p class="empty">Todavía no hay nadie. Añade a la gente del sorteo.</p>';
@@ -230,13 +242,13 @@ function renderDraw(){const R=S.result;$('#setup').disabled=!!R;
 function envHTML(g,r,b,d){return `<div class="revealbox"><p class="hi">Hola, <b>${esc(g)}</b></p>
   <div class="stage"><div class="env"><div class="back"></div><div class="letter"><span>Te ha tocado</span><strong>${esc(r)}</strong></div><div class="front"></div><div class="flap"></div></div>
   <div class="after chips" style="justify-content:center;margin-top:16px">${b?`<span class="chip">Presupuesto: ${esc(b)}</span>`:''}${d?`<span class="chip">Entrega: ${esc(d)}</span>`:''}</div></div>
-  <button type="button" class="btn big" data-open>Abrir el sobre</button></div>`}
+  <button type="button" class="btn big" data-open>Abrir el sobre</button><button type="button" class="mute" data-mute>${musicOn?'Quitar música':'Poner música'}</button></div>`}
 
 function showReveal(d){$('#org').hidden=true;$('#top').hidden=true;const R=$('#reveal');R.hidden=false;
   R.innerHTML=d?`<div class="wrap narrow">${envHTML(d[0],d[1],d[2],d[3])}<p class="hint c">Guárdatelo para ti. Nadie más ve este sobre.</p></div>`
    :`<div class="wrap narrow c"><h2 style="justify-content:center">Ese enlace no cuadra</h2><p>Puede que se haya cortado al copiarlo. Pide a quien organiza que te lo reenvíe, o pega el código a mano.</p><a href="#inicio" class="btn">Ir al inicio</a></div>`;
   window.scrollTo(0,0)}
-function route(){const h=location.hash;if(h.startsWith('#ai-'))showReveal(dec(clean(h)));else{$('#reveal').hidden=true;$('#org').hidden=!unlocked;$('#lockForm').hidden=unlocked;$('#top').hidden=false}}
+function route(){const h=location.hash;if(h.startsWith('#ai-'))showReveal(dec(clean(h)));else{stopMusic();$('#reveal').hidden=true;$('#org').hidden=!unlocked;$('#lockForm').hidden=unlocked;$('#top').hidden=false}}
 
 function passList(){openOv(`<h3>Repartir en persona</h3><p class="hint">Id pasando el móvil: cada uno toca su nombre, abre su sobre y lo oculta antes de pasarlo.</p><div class="names">${S.result.pairs.map((p,i)=>`<button type="button" class="nb${S.seen[p.g]?' seen':''}" data-pass="${i}">${esc(p.g)}${S.seen[p.g]?'<small>visto</small>':''}</button>`).join('')}</div><button type="button" class="btn ghost" data-close>Cerrar</button>`)}
 
@@ -270,9 +282,10 @@ document.addEventListener('click',e=>{const t=e.target.closest('button,a');if(!t
   else if(t.id==='passBtn')passList();
   else if(d.pass!=null){const p=R.pairs[d.pass];openOv(`<p class="hint">Pásale el móvil a</p><h3>${esc(p.g)}</h3><button type="button" class="btn big" data-show="${d.pass}">Soy ${esc(p.g)}, enséñamelo</button><button type="button" class="btn ghost" data-back>No, volver</button>`)}
   else if(d.show!=null){const p=R.pairs[d.show];openOv(envHTML(p.g,p.r,S.budget,S.date)+`<button type="button" class="btn ghost" data-hide="${d.show}">Visto: ocultar y pasar el móvil</button>`)}
-  else if(d.hide!=null){S.seen[R.pairs[d.hide].g]=true;save();passList()}
+  else if(d.hide!=null){stopMusic();S.seen[R.pairs[d.hide].g]=true;save();passList()}
   else if(d.back!=null)passList();
-  else if(d.open!=null){const box=t.closest('.revealbox');box.querySelector('.env').classList.add('open');t.hidden=true}
+  else if(d.open!=null){const box=t.closest('.revealbox');box.querySelector('.env').classList.add('open');t.hidden=true;playMusic()}
+  else if(d.mute!=null){musicOn=!musicOn;t.textContent=musicOn?'Quitar música':'Poner música';if(musicOn){if(t.closest('.revealbox').querySelector('.env.open'))playMusic()}else stopMusic()}
   else if(t.id==='spoilBtn')openOv(`<h3>¿Seguro?</h3><p>Si lo miras, tú ya no juegas a ciegas.</p><button type="button" class="btn" data-spoil>Sí, enséñamelo</button><button type="button" class="btn ghost" data-close>Mejor no</button>`);
   else if(d.spoil!=null)openOv(`<h3>Quién regala a quién</h3><table><thead><tr><th>Regala</th><th>A</th></tr></thead><tbody>${R.pairs.map(p=>`<tr><td>${esc(p.g)}</td><td>${esc(p.r)}</td></tr>`).join('')}</tbody></table><button type="button" class="btn ghost" data-close>Cerrar</button>`);
   else if(t.id==='redoBtn')openOv(`<h3>¿Rehacer el sorteo?</h3><p>Se desbloquean la lista y las reglas. Si ya mandaste mensajes, avisa de que los antiguos no valen y manda los nuevos.</p><button type="button" class="btn" data-redo>Sí, rehacer</button><button type="button" class="btn ghost" data-close>Cancelar</button>`);
